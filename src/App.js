@@ -86,6 +86,154 @@ const PLAYER_STONE = {
   size: 24,
 };
 
+// ─── CRYSTAL CATALOG ─────────────────────────────────────────────────────────
+// Rarity weights: Common=60, Uncommon=25, Rare=12, Legendary=3
+const RARITY = {
+  Common: { label: "Common", color: "#8090A0", weight: 60 },
+  Uncommon: { label: "Uncommon", color: "#4CAF50", weight: 25 },
+  Rare: { label: "Rare", color: "#7C4DFF", weight: 12 },
+  Legendary: { label: "Legendary", color: "#FFD700", weight: 3 },
+};
+
+const CRYSTALS = [
+  // ── Always available (no celestial requirement) ──
+  { id: "quartz", name: "Clear Quartz", affinity: null, rarity: "Common",
+    color: "#E8E8F0", glowColor: "rgba(232,232,240,0.3)", symbol: "◇",
+    hardness: 7, desc: "Amplifies energy. The universal stone.", sides: 6 },
+  { id: "granite", name: "Granite", affinity: null, rarity: "Common",
+    color: "#908880", glowColor: "rgba(144,136,128,0.3)", symbol: "⬡",
+    hardness: 6.5, desc: "Steady and grounding. A foundation stone.", sides: 5 },
+  { id: "obsidian", name: "Obsidian", affinity: null, rarity: "Uncommon",
+    color: "#1A1A2E", glowColor: "rgba(26,26,46,0.4)", symbol: "◆",
+    hardness: 5.5, desc: "Volcanic glass. Shields against negativity.", sides: 4 },
+
+  // ── Sun-aligned ──
+  { id: "citrine", name: "Citrine", affinity: "Sun", rarity: "Uncommon",
+    color: "#F0C040", glowColor: "rgba(240,192,64,0.3)", symbol: "◇",
+    hardness: 7, desc: "Carries the power of the sun. Manifests abundance.", sides: 6 },
+  { id: "sunstone", name: "Sunstone", affinity: "Sun", rarity: "Rare",
+    color: "#E87030", glowColor: "rgba(232,112,48,0.4)", symbol: "✦",
+    hardness: 6.5, desc: "Shimmers with solar fire. Radiates leadership.", sides: 8 },
+
+  // ── Moon-aligned ──
+  { id: "moonstone", name: "Moonstone", affinity: "Moon", rarity: "Uncommon",
+    color: "#C8D0E8", glowColor: "rgba(200,208,232,0.4)", symbol: "◎",
+    hardness: 6, desc: "Glows with inner light. Enhances intuition.", sides: 6 },
+  { id: "selenite", name: "Selenite", affinity: "Moon", rarity: "Rare",
+    color: "#E8E0F0", glowColor: "rgba(232,224,240,0.5)", symbol: "▽",
+    hardness: 2, desc: "Named for the Moon goddess. Purifies energy.", sides: 4 },
+
+  // ── Mars-aligned ──
+  { id: "red_jasper", name: "Red Jasper", affinity: "Mars", rarity: "Uncommon",
+    color: "#C04030", glowColor: "rgba(192,64,48,0.3)", symbol: "◆",
+    hardness: 7, desc: "Stone of endurance. Fuels courage and stamina.", sides: 5 },
+  { id: "garnet", name: "Garnet", affinity: "Mars", rarity: "Rare",
+    color: "#901020", glowColor: "rgba(144,16,32,0.4)", symbol: "◇",
+    hardness: 7, desc: "Deep red fire. Ignites passion and vitality.", sides: 8 },
+
+  // ── Venus-aligned ──
+  { id: "rose_quartz", name: "Rose Quartz", affinity: "Venus", rarity: "Common",
+    color: "#E8A0B0", glowColor: "rgba(232,160,176,0.3)", symbol: "◇",
+    hardness: 7, desc: "The stone of love. Soothes the heart.", sides: 6 },
+  { id: "emerald", name: "Emerald", affinity: "Venus", rarity: "Legendary",
+    color: "#30A050", glowColor: "rgba(48,160,80,0.4)", symbol: "◆",
+    hardness: 7.5, desc: "Sacred to Venus. Bestows harmony and renewal.", sides: 6 },
+
+  // ── Jupiter-aligned ──
+  { id: "amethyst", name: "Amethyst", affinity: "Jupiter", rarity: "Uncommon",
+    color: "#9060C0", glowColor: "rgba(144,96,192,0.3)", symbol: "◇",
+    hardness: 7, desc: "Royal purple. Expands wisdom and spiritual sight.", sides: 6 },
+  { id: "lapis_lazuli", name: "Lapis Lazuli", affinity: "Jupiter", rarity: "Rare",
+    color: "#1840A0", glowColor: "rgba(24,64,160,0.4)", symbol: "◆",
+    hardness: 5.5, desc: "Stone of the heavens. Commands truth and sovereignty.", sides: 5 },
+
+  // ── Saturn-aligned ──
+  { id: "onyx", name: "Onyx", affinity: "Saturn", rarity: "Uncommon",
+    color: "#202028", glowColor: "rgba(32,32,40,0.4)", symbol: "■",
+    hardness: 7, desc: "Absorbs and transforms. Teaches discipline.", sides: 4 },
+  { id: "black_tourmaline", name: "Black Tourmaline", affinity: "Saturn", rarity: "Rare",
+    color: "#101018", glowColor: "rgba(16,16,24,0.5)", symbol: "▮",
+    hardness: 7.5, desc: "The great protector. Grounds and purifies.", sides: 3 },
+];
+
+const CRYSTAL_DROP_CHANCE = 0.25; // 25% chance per click
+const MAX_FIELD_CRYSTALS = 5; // max uncollected crystals on field
+
+function rollCrystalDrop(skyData) {
+  if (Math.random() > CRYSTAL_DROP_CHANCE) return null;
+
+  // Determine which bodies are above horizon
+  const activeBodies = new Set();
+  if (skyData) {
+    if (skyData.sun.is_above_horizon) activeBodies.add("Sun");
+    if (skyData.moon.is_above_horizon) activeBodies.add("Moon");
+    skyData.planets.forEach((p) => {
+      if (p.is_above_horizon) activeBodies.add(p.name);
+    });
+  }
+
+  // Build weighted pool
+  const pool = [];
+  CRYSTALS.forEach((crystal) => {
+    // Always include null-affinity crystals
+    // Include affinity crystals only if their body is above horizon
+    if (crystal.affinity === null || activeBodies.has(crystal.affinity)) {
+      const rarityInfo = RARITY[crystal.rarity];
+      // Bonus weight if the matching body is up
+      const affinityBonus = crystal.affinity && activeBodies.has(crystal.affinity) ? 1.5 : 1;
+      pool.push({ crystal, weight: rarityInfo.weight * affinityBonus });
+    }
+  });
+
+  if (pool.length === 0) return null;
+
+  // Weighted random selection
+  const totalWeight = pool.reduce((sum, p) => sum + p.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const entry of pool) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.crystal;
+  }
+  return pool[pool.length - 1].crystal;
+}
+
+// Draw a crystal shape on canvas
+function drawCrystalShape(ctx, x, y, size, sides, color, glowColor, timestamp) {
+  const pulse = 1 + 0.06 * Math.sin(timestamp / 800 + x * 0.05);
+  const s = size * pulse;
+
+  // Glow
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, s * 2.5);
+  glow.addColorStop(0, glowColor);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(x, y, s * 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  const bodyGrad = ctx.createRadialGradient(x - s * 0.2, y - s * 0.2, 0, x, y, s);
+  bodyGrad.addColorStop(0, "#fff");
+  bodyGrad.addColorStop(0.35, color);
+  bodyGrad.addColorStop(1, color + "88");
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const a = (i / sides) * Math.PI * 2 - Math.PI / 2;
+    const px = x + s * Math.cos(a);
+    const py = y + s * Math.sin(a);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Edge highlight
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
 function azimuthToAngle(azDeg) {
   return ((azDeg - 90) * Math.PI) / 180;
 }
@@ -131,13 +279,17 @@ function App() {
   const bodyPositionsRef = useRef([]);
   const clickEffectsRef = useRef([]);
   const floatingTextsRef = useRef([]);
+  const fieldCrystalsRef = useRef([]);
 
   const [skyData, setSkyData] = useState(null);
   const [location, setLocation] = useState(null);
   const [hoveredBody, setHoveredBody] = useState(null);
+  const [hoveredCrystal, setHoveredCrystal] = useState(null);
   const [energy, setEnergy] = useState({ Solar: 0, Lunar: 0 });
   const [logs, setLogs] = useState([]);
   const [clickPower, setClickPower] = useState(1); // upgradable later
+  const [inventory, setInventory] = useState([]); // collected crystals
+  const [showInventory, setShowInventory] = useState(false);
 
   const log = useCallback((msg) => {
     const time = new Date().toLocaleTimeString();
@@ -410,6 +562,19 @@ function App() {
         ctx.fillText(config.symbol, x, y + size + 14);
       });
 
+      // ── Field crystals ──
+      fieldCrystalsRef.current.forEach((fc) => {
+        if (fc.collected) return;
+        const age = timestamp - fc.spawnTime;
+        // Fade in over 500ms
+        const fadeIn = Math.min(1, age / 500);
+        const fx = cx + fc.fieldX;
+        const fy = cy + fc.fieldY;
+        ctx.globalAlpha = fadeIn;
+        drawCrystalShape(ctx, fx, fy, 10, fc.sides, fc.color, fc.glowColor, timestamp);
+        ctx.globalAlpha = 1;
+      });
+
       // ── Click effects ──
       const now = timestamp;
 
@@ -423,7 +588,10 @@ function App() {
         if (fx.type === "ripple") {
           const rippleRadius = Math.max(0, fx.maxRadius * progress);
           const alpha = 0.5 * (1 - progress);
-          ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
+          const rColor = fx.color || "255, 215, 0";
+          ctx.strokeStyle = fx.color
+            ? `${fx.color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`
+            : `rgba(255, 215, 0, ${alpha})`;
           ctx.lineWidth = 2 * (1 - progress);
           ctx.beginPath();
           ctx.arc(fx.x, fx.y, rippleRadius, 0, Math.PI * 2);
@@ -434,7 +602,9 @@ function App() {
           const py = fx.y + fx.vy * t * 60;
           const alpha = 0.9 * (1 - progress);
           const size = Math.max(0.1, fx.size * (1 - progress * 0.5));
-          ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+          ctx.fillStyle = fx.color
+            ? `${fx.color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`
+            : `rgba(255, 215, 0, ${alpha})`;
           ctx.beginPath();
           ctx.arc(px, py, size, 0, Math.PI * 2);
           ctx.fill();
@@ -451,7 +621,9 @@ function App() {
         const yOffset = -40 * progress;
 
         ctx.font = `bold ${14 + 4 * (1 - progress)}px "Palatino", Georgia, serif`;
-        ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+        ctx.fillStyle = ft.color
+          ? `${ft.color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`
+          : `rgba(255, 215, 0, ${alpha})`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(ft.text, ft.x, ft.y + yOffset);
@@ -502,28 +674,42 @@ function App() {
     const rect = canvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
     const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
 
-    let found = null;
+    let foundBody = null;
     bodyPositionsRef.current.forEach((body) => {
       const dx = mx - body.x;
       const dy = my - body.y;
       if (Math.sqrt(dx * dx + dy * dy) < body.config.size * 2.5) {
-        found = body;
+        foundBody = body;
       }
     });
 
-    // Check if hovering center stone
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+    // Check field crystals
+    let foundCrystal = null;
+    fieldCrystalsRef.current.forEach((fc) => {
+      if (fc.collected) return;
+      const fx = cx + fc.fieldX;
+      const fy = cy + fc.fieldY;
+      const dx = mx - fx;
+      const dy = my - fy;
+      if (Math.sqrt(dx * dx + dy * dy) < 18) {
+        foundCrystal = fc;
+      }
+    });
+
+    // Check center stone
     const dxc = mx - cx;
     const dyc = my - cy;
     const overStone = Math.sqrt(dxc * dxc + dyc * dyc) < PLAYER_STONE.size * 2;
 
-    setHoveredBody(found);
-    canvas.style.cursor = (found || overStone) ? "pointer" : "default";
+    setHoveredBody(foundBody);
+    setHoveredCrystal(foundCrystal);
+    canvas.style.cursor = (foundBody || foundCrystal || overStone) ? "pointer" : "default";
   }, []);
 
-  // ─── Click to collect energy ───────────────────────────────────────────
+  // ─── Click handler (energy + crystal collection) ───────────────────────
   const handleClick = useCallback((e) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -532,15 +718,98 @@ function App() {
     const my = (e.clientY - rect.top) * (canvas.height / rect.height);
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
+    const now = performance.now();
 
+    // Check if clicking a field crystal first
+    let clickedCrystal = null;
+    fieldCrystalsRef.current.forEach((fc) => {
+      if (fc.collected) return;
+      const fx = cx + fc.fieldX;
+      const fy = cy + fc.fieldY;
+      const dx = mx - fx;
+      const dy = my - fy;
+      if (Math.sqrt(dx * dx + dy * dy) < 18) {
+        clickedCrystal = fc;
+      }
+    });
+
+    if (clickedCrystal) {
+      // Collect the crystal
+      clickedCrystal.collected = true;
+      fieldCrystalsRef.current = fieldCrystalsRef.current.filter((fc) => !fc.collected);
+
+      // Add to inventory
+      setInventory((prev) => [
+        ...prev,
+        {
+          id: clickedCrystal.id,
+          name: clickedCrystal.name,
+          rarity: clickedCrystal.rarity,
+          color: clickedCrystal.color,
+          glowColor: clickedCrystal.glowColor,
+          symbol: clickedCrystal.symbol,
+          sides: clickedCrystal.sides,
+          affinity: clickedCrystal.affinity,
+          hardness: clickedCrystal.hardness,
+          desc: clickedCrystal.desc,
+          collectedAt: Date.now(),
+        },
+      ]);
+
+      // Collection effects
+      const fx = cx + clickedCrystal.fieldX;
+      const fy = cy + clickedCrystal.fieldY;
+      const rarityColor = RARITY[clickedCrystal.rarity].color;
+
+      // Ripple at crystal location
+      clickEffectsRef.current.push({
+        type: "ripple",
+        x: fx,
+        y: fy,
+        maxRadius: 30,
+        startTime: now,
+        duration: 400,
+        color: rarityColor,
+      });
+
+      // Particles burst in crystal's color
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI * 2 * i) / 6 + Math.random() * 0.3;
+        clickEffectsRef.current.push({
+          type: "particle",
+          x: fx,
+          y: fy,
+          vx: Math.cos(angle) * 2,
+          vy: Math.sin(angle) * 2,
+          size: 2,
+          startTime: now,
+          duration: 400,
+          color: clickedCrystal.color,
+        });
+      }
+
+      // Floating text with crystal name
+      floatingTextsRef.current.push({
+        text: clickedCrystal.name,
+        x: fx,
+        y: fy - 15,
+        startTime: now,
+        duration: 1200,
+        color: rarityColor,
+      });
+
+      log(`Collected: ${clickedCrystal.name} (${clickedCrystal.rarity})`);
+      setHoveredCrystal(null);
+      return;
+    }
+
+    // Otherwise check center stone click
     const dx = mx - cx;
     const dy = my - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // Only trigger if clicking near the center stone
     if (dist > PLAYER_STONE.size * 2.5) return;
 
-    const now = performance.now();
     const earned = clickPower;
 
     // Add energy
@@ -589,7 +858,29 @@ function App() {
       startTime: now,
       duration: 900,
     });
-  }, [clickPower]);
+
+    // Crystal drop chance
+    if (fieldCrystalsRef.current.length < MAX_FIELD_CRYSTALS) {
+      const drop = rollCrystalDrop(skyData);
+      if (drop) {
+        // Place crystal at random position between center and edge
+        const angle = Math.random() * Math.PI * 2;
+        const minDist = PLAYER_STONE.size * 4;
+        const canvas = canvasRef.current;
+        const fieldRadius = (Math.min(canvas.width, canvas.height) / 2 - 40) * 0.85;
+        const dist = minDist + Math.random() * (fieldRadius - minDist);
+        fieldCrystalsRef.current.push({
+          ...drop,
+          fieldX: Math.cos(angle) * dist,
+          fieldY: Math.sin(angle) * dist,
+          spawnTime: now,
+          collected: false,
+          fieldId: Date.now() + Math.random(),
+        });
+        log(`Crystal spawned: ${drop.name} (${drop.rarity})`);
+      }
+    }
+  }, [clickPower, skyData, log]);
 
   // ─── RENDER ───────────────────────────────────────────────────────────
   return (
@@ -636,6 +927,7 @@ function App() {
           gap: "24px",
           marginBottom: "12px",
           fontSize: "0.85rem",
+          alignItems: "center",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -646,6 +938,22 @@ function App() {
           <span style={{ color: CELESTIAL_CONFIG.Moon.color }}>☽</span>
           <span>{Math.floor(energy.Lunar)} Lunar</span>
         </div>
+        <button
+          onClick={() => setShowInventory(true)}
+          style={{
+            background: "rgba(60, 65, 80, 0.4)",
+            border: "1px solid rgba(100, 110, 130, 0.4)",
+            color: "#c0c8e0",
+            padding: "4px 12px",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: "0.8rem",
+            letterSpacing: "0.05em",
+          }}
+        >
+          ◆ Inventory ({inventory.length})
+        </button>
       </div>
 
       <canvas
@@ -659,7 +967,7 @@ function App() {
         }}
       />
 
-      {hoveredBody && (
+      {hoveredBody && !hoveredCrystal && (
         <div
           style={{
             marginTop: "12px",
@@ -684,6 +992,146 @@ function App() {
           </div>
           <div style={{ marginTop: "6px", fontSize: "0.75rem", color: hoveredBody.config.color }}>
             {hoveredBody.config.energy} Energy
+          </div>
+        </div>
+      )}
+
+      {hoveredCrystal && (
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "12px 20px",
+            background: "rgba(20, 22, 35, 0.9)",
+            border: `1px solid ${RARITY[hoveredCrystal.rarity].color}44`,
+            borderRadius: "6px",
+            textAlign: "center",
+            maxWidth: "300px",
+          }}
+        >
+          <div style={{ fontSize: "1.1rem", color: hoveredCrystal.color, marginBottom: "4px" }}>
+            {hoveredCrystal.symbol} {hoveredCrystal.name}
+          </div>
+          <div style={{ fontSize: "0.7rem", color: RARITY[hoveredCrystal.rarity].color, marginBottom: "4px" }}>
+            {hoveredCrystal.rarity}
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "rgba(160, 170, 200, 0.7)", marginBottom: "4px" }}>
+            {hoveredCrystal.desc}
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "rgba(120, 130, 160, 0.6)" }}>
+            Hardness: {hoveredCrystal.hardness}
+            {hoveredCrystal.affinity && ` · Affinity: ${hoveredCrystal.affinity}`}
+          </div>
+          <div style={{ marginTop: "6px", fontSize: "0.7rem", color: "rgba(180, 190, 210, 0.5)" }}>
+            Click to collect
+          </div>
+        </div>
+      )}
+
+      {/* Inventory Modal */}
+      {showInventory && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(2, 2, 8, 0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 900,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowInventory(false);
+          }}
+        >
+          <div
+            style={{
+              background: "#0a0a14",
+              border: "1px solid rgba(60, 65, 80, 0.6)",
+              borderRadius: "8px",
+              padding: "24px",
+              maxWidth: "500px",
+              width: "90%",
+              maxHeight: "70vh",
+              overflow: "auto",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 400, letterSpacing: "0.15em", margin: 0 }}>
+                ◆ Crystal Collection
+              </h2>
+              <button
+                onClick={() => setShowInventory(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#8090A0",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {inventory.length === 0 ? (
+              <p style={{ color: "rgba(120, 130, 160, 0.5)", fontSize: "0.85rem", textAlign: "center", padding: "20px 0" }}>
+                No crystals collected yet. Click the Lodestone to find them.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {/* Group by crystal type and show counts */}
+                {Object.values(
+                  inventory.reduce((acc, item) => {
+                    if (!acc[item.id]) {
+                      acc[item.id] = { ...item, count: 0 };
+                    }
+                    acc[item.id].count++;
+                    return acc;
+                  }, {})
+                )
+                  .sort((a, b) => {
+                    const rarityOrder = { Common: 0, Uncommon: 1, Rare: 2, Legendary: 3 };
+                    return rarityOrder[b.rarity] - rarityOrder[a.rarity] || a.name.localeCompare(b.name);
+                  })
+                  .map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        padding: "8px 12px",
+                        background: "rgba(30, 32, 45, 0.5)",
+                        borderRadius: "4px",
+                        borderLeft: `3px solid ${RARITY[item.rarity].color}`,
+                      }}
+                    >
+                      <span style={{ fontSize: "1.2rem", color: item.color }}>{item.symbol}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: "0.85rem", color: "#c0c8e0" }}>
+                          {item.name}
+                          <span style={{ color: "rgba(120,130,160,0.5)", marginLeft: "6px" }}>×{item.count}</span>
+                        </div>
+                        <div style={{ fontSize: "0.7rem", color: RARITY[item.rarity].color }}>
+                          {item.rarity}
+                          {item.affinity && (
+                            <span style={{ color: "rgba(120,130,160,0.5)", marginLeft: "8px" }}>
+                              {item.affinity} affinity
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "0.7rem", color: "rgba(100,110,130,0.5)" }}>
+                        H:{item.hardness}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
       )}
