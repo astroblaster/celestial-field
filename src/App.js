@@ -14,28 +14,53 @@ import { drawField } from "./game/renderer";
 
 // ─── DEBUG LOG ───────────────────────────────────────────────────────────────
 function DebugLog({ entries }) {
+  const [collapsed, setCollapsed] = React.useState(true);
   return (
     <div
       style={{
         position: "fixed",
         bottom: 0,
         left: 0,
-        right: 0,
-        maxHeight: "150px",
-        overflow: "auto",
-        background: "rgba(0,0,0,0.85)",
-        color: "#7f8",
-        fontFamily: "monospace",
-        fontSize: "11px",
-        padding: "8px",
         zIndex: 1000,
       }}
     >
-      {entries.map((e, i) => (
-        <div key={i}>
-          <span style={{ color: "#888" }}>[{e.time}]</span> {e.msg}
+      <div
+        onClick={() => setCollapsed((c) => !c)}
+        style={{
+          background: "rgba(0,0,0,0.85)",
+          color: "#7f8",
+          fontFamily: "monospace",
+          fontSize: "11px",
+          padding: "4px 10px",
+          cursor: "pointer",
+          userSelect: "none",
+          borderTopRightRadius: "4px",
+          display: "inline-block",
+        }}
+      >
+        {collapsed ? "▶ Log" : "▼ Log"}
+      </div>
+      {!collapsed && (
+        <div
+          style={{
+            maxHeight: "150px",
+            maxWidth: "500px",
+            overflow: "auto",
+            background: "rgba(0,0,0,0.85)",
+            color: "#7f8",
+            fontFamily: "monospace",
+            fontSize: "11px",
+            padding: "8px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {entries.map((e, i) => (
+            <div key={i}>
+              <span style={{ color: "#888" }}>[{e.time}]</span> {e.msg}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
