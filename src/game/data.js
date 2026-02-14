@@ -5,9 +5,33 @@ export const SAVE_KEY = "celestial_attunement_save";
 export const SAVE_INTERVAL = 5000; // auto-save every 5s
 
 // ─── GAME BALANCE ────────────────────────────────────────────────────────────
-export const CRYSTAL_DROP_CHANCE = 0.05; // 5% base, upgradeable later
+export const CRYSTAL_DROP_CHANCE = 0.02; // 2% base, upgradeable
 export const MAX_FIELD_CRYSTALS = 5;
-export const CRYSTAL_BASE_SIZE = 14; // larger than before
+export const CRYSTAL_BASE_SIZE = 14;
+
+// ─── UPGRADES ────────────────────────────────────────────────────────────────
+export const UPGRADES = {
+  clickPower: {
+    id: "clickPower",
+    name: "Lodestone Resonance",
+    desc: "Increases Solar energy per click",
+    symbol: "☉↑",
+    maxLevel: 10,
+    costs: [10, 25, 50, 100, 200, 400, 800, 1600, 3200, 6400],
+    effect: (level) => 1 + level, // base 1 + level bonus
+    effectLabel: (level) => `+${1 + level} Solar/click`,
+  },
+  dropChance: {
+    id: "dropChance",
+    name: "Crystal Attunement",
+    desc: "Increases chance of finding crystals",
+    symbol: "◇↑",
+    maxLevel: 8,
+    costs: [50, 100, 200, 400, 800, 1600, 3200, 6400],
+    effect: (level) => 0.02 + level * 0.01, // 2% base + 1% per level
+    effectLabel: (level) => `${((0.02 + level * 0.01) * 100).toFixed(0)}% drop chance`,
+  },
+}; // larger than before
 
 // Crystal expiration (ms) — rarer = shorter window
 export const CRYSTAL_LIFETIME = {

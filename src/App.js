@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   API_BASE, SKY_POLL_INTERVAL, SAVE_INTERVAL,
   CELESTIAL_CONFIG, PLAYER_STONE, RARITY, CRYSTAL_BASE_SIZE,
-  MAX_FIELD_CRYSTALS, CRYSTAL_SELL_VALUE,
+  MAX_FIELD_CRYSTALS, CRYSTAL_SELL_VALUE, UPGRADES,
 } from "./game/data";
 import {
   rollCrystalDrop, getCrystalLifetime, getCrystalSellValue,
   saveGame, loadGame, clearSave, getDefaultState,
   calculateOfflineEarnings, altitudeToIntensity, formatDuration,
+  getUpgradeCost, getUpgradeEffect, canAffordUpgrade,
 } from "./game/logic";
 import { drawField } from "./game/renderer";
 
@@ -56,6 +57,7 @@ function App() {
   const [inventory, setInventory] = useState([]);
   const [clickPower, setClickPower] = useState(1);
   const [totalClicks, setTotalClicks] = useState(0);
+  const [upgradeLevels, setUpgradeLevels] = useState({ clickPower: 0, dropChance: 0 });
   const [showInventory, setShowInventory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [offlineReport, setOfflineReport] = useState(null);
@@ -75,6 +77,7 @@ function App() {
       setInventory(saved.inventory || []);
       setClickPower(saved.clickPower || 1);
       setTotalClicks(saved.totalClicks || 0);
+      setUpgradeLevels(saved.upgradeLevels || { clickPower: 0, dropChance: 0 });
       if (saved.location) setLocation(saved.location);
       log(`Game loaded. Solar: ${Math.floor(saved.energy?.Solar || 0)}, Crystals: ${(saved.inventory || []).length}`);
 
@@ -98,16 +101,17 @@ function App() {
         inventory,
         clickPower,
         totalClicks,
+        upgradeLevels,
         location,
       });
     }, SAVE_INTERVAL);
     return () => clearInterval(interval);
-  }, [energy, inventory, clickPower, totalClicks, location]);
+  }, [energy, inventory, clickPower, totalClicks, upgradeLevels, location]);
 
   // ─── Save on page close ────────────────────────────────────────────────
   useEffect(() => {
     const handleUnload = () => {
-      saveGame({ energy, inventory, clickPower, totalClicks, location });
+      saveGame({ energy, inventory, clickPower, totalClicks, upgradeLevels, location });
     };
     window.addEventListener("beforeunload", handleUnload);
     return () => window.removeEventListener("beforeunload", handleUnload);
@@ -337,7 +341,8 @@ function App() {
 
     // Crystal drop
     if (fieldCrystalsRef.current.length < MAX_FIELD_CRYSTALS) {
-      const drop = rollCrystalDrop(skyData);
+      const dropChance = getUpgradeEffect("dropChance", upgradeLevels.dropChance);
+      const drop = rollCrystalDrop(skyData, dropChance);
       if (drop) {
         const angle = Math.random() * Math.PI * 2;
         const minDist = PLAYER_STONE.size * 4;
@@ -350,7 +355,7 @@ function App() {
         log(`Crystal spawned: ${drop.name} (${drop.rarity})`);
       }
     }
-  }, [clickPower, skyData, log]);
+  }, [clickPower, skyData, log, upgradeLevels]);
 
   // ─── Sell crystal ───────────────────────────────────────────────────────
   const handleSell = useCallback((crystalId, count = 1) => {
@@ -371,6 +376,24 @@ function App() {
     });
   }, []);
 
+  // ─── Purchase upgrade ────────────────────────────────────────────────
+  const handleUpgrade = useCallback((upgradeId) => {
+    const level = upgradeLevels[upgradeId] || 0;
+    const cost = getUpgradeCost(upgradeId, level);
+    if (cost === null || energy.Solar < cost) return;
+
+    setEnergy((prev) => ({ ...prev, Solar: prev.Solar - cost }));
+    setUpgradeLevels((prev) => {
+      const newLevels = { ...prev, [upgradeId]: (prev[upgradeId] || 0) + 1 };
+      // Sync clickPower state if it's the click upgrade
+      if (upgradeId === "clickPower") {
+        setClickPower(getUpgradeEffect("clickPower", newLevels.clickPower));
+      }
+      return newLevels;
+    });
+    log(`Upgraded ${UPGRADES[upgradeId].name} to level ${level + 1}`);
+  }, [upgradeLevels, energy.Solar, log]);
+
   // ─── Reset game ─────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     clearSave();
@@ -379,6 +402,7 @@ function App() {
     setInventory(fresh.inventory);
     setClickPower(fresh.clickPower);
     setTotalClicks(0);
+    setUpgradeLevels(fresh.upgradeLevels);
     fieldCrystalsRef.current = [];
     clickEffectsRef.current = [];
     floatingTextsRef.current = [];
@@ -449,6 +473,56 @@ function App() {
         onClick={handleClick}
         style={{ borderRadius: "8px", cursor: "default" }}
       />
+
+      {/* Upgrade panel */}
+      <div style={{
+        display: "flex", gap: "12px", marginTop: "12px",
+        flexWrap: "wrap", justifyContent: "center", maxWidth: "500px",
+      }}>
+        {Object.values(UPGRADES).map((upgrade) => {
+          const level = upgradeLevels[upgrade.id] || 0;
+          const cost = getUpgradeCost(upgrade.id, level);
+          const maxed = level >= upgrade.maxLevel;
+          const affordable = cost !== null && energy.Solar >= cost;
+
+          return (
+            <button
+              key={upgrade.id}
+              onClick={() => handleUpgrade(upgrade.id)}
+              disabled={maxed || !affordable}
+              style={{
+                background: maxed
+                  ? "rgba(40,45,55,0.3)"
+                  : affordable
+                    ? "rgba(255,215,0,0.08)"
+                    : "rgba(30,32,45,0.4)",
+                border: `1px solid ${maxed ? "rgba(60,65,80,0.3)" : affordable ? "rgba(255,215,0,0.3)" : "rgba(60,65,80,0.4)"}`,
+                borderRadius: "6px",
+                padding: "10px 16px",
+                cursor: maxed ? "default" : affordable ? "pointer" : "not-allowed",
+                fontFamily: "inherit",
+                textAlign: "left",
+                minWidth: "200px",
+                opacity: maxed ? 0.5 : 1,
+                flex: "1 1 200px",
+              }}
+            >
+              <div style={{ fontSize: "0.8rem", color: affordable ? "#FFD700" : "#8090A0", marginBottom: "2px" }}>
+                {upgrade.symbol} {upgrade.name}
+                <span style={{ float: "right", fontSize: "0.7rem", color: "rgba(120,130,160,0.5)" }}>
+                  Lv {level}/{upgrade.maxLevel}
+                </span>
+              </div>
+              <div style={{ fontSize: "0.65rem", color: "rgba(160,170,200,0.6)", marginBottom: "4px" }}>
+                {upgrade.effectLabel(level)}
+              </div>
+              <div style={{ fontSize: "0.7rem", color: maxed ? "rgba(100,110,130,0.4)" : affordable ? "#FFD700" : "rgba(160,130,100,0.6)" }}>
+                {maxed ? "MAX" : `Cost: ${cost} ☉`}
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Celestial body tooltip */}
       {hoveredBody && !hoveredCrystal && (
@@ -555,7 +629,7 @@ function App() {
           </div>
           <button
             onClick={() => {
-              saveGame({ energy, inventory, clickPower, totalClicks, location });
+              saveGame({ energy, inventory, clickPower, totalClicks, upgradeLevels, location });
               log("Game saved manually.");
             }}
             style={{ ...btnStyle, marginBottom: "8px", width: "100%" }}

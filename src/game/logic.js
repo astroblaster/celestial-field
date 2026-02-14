@@ -1,6 +1,6 @@
 import {
   CRYSTALS, RARITY, CRYSTAL_DROP_CHANCE, CRYSTAL_LIFETIME, CRYSTAL_SELL_VALUE,
-  SAVE_KEY, OFFLINE_SOLAR_RATE, MAX_OFFLINE_HOURS,
+  SAVE_KEY, OFFLINE_SOLAR_RATE, MAX_OFFLINE_HOURS, UPGRADES,
 } from "./data";
 
 // ─── CRYSTAL DROP LOGIC ──────────────────────────────────────────────────────
@@ -52,6 +52,7 @@ const DEFAULT_STATE = {
   inventory: [],
   clickPower: 1,
   totalClicks: 0,
+  upgradeLevels: { clickPower: 0, dropChance: 0 },
   lastSaveTime: Date.now(),
   location: null,
 };
@@ -121,6 +122,26 @@ export function calculateOfflineEarnings(lastSaveTime) {
     solar: Math.floor(solarEarned),
     seconds: Math.floor(cappedSeconds),
   };
+}
+
+// ─── UPGRADES ────────────────────────────────────────────────────────────────
+
+export function getUpgradeCost(upgradeId, currentLevel) {
+  const upgrade = UPGRADES[upgradeId];
+  if (!upgrade || currentLevel >= upgrade.maxLevel) return null;
+  return upgrade.costs[currentLevel];
+}
+
+export function getUpgradeEffect(upgradeId, level) {
+  const upgrade = UPGRADES[upgradeId];
+  if (!upgrade) return null;
+  return upgrade.effect(level);
+}
+
+export function canAffordUpgrade(upgradeId, currentLevel, solarEnergy) {
+  const cost = getUpgradeCost(upgradeId, currentLevel);
+  if (cost === null) return false;
+  return solarEnergy >= cost;
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
